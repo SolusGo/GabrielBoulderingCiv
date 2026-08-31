@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Mod id="b7cf57a5-9db7-4b88-a151-7e2af09d5f90" version="1">
+  <Properties>
+    <Name>Gabriel — The Relentless Projector</Name>
+    <Stability>Alpha</Stability>
+    <Teaser>Read the route, learn from every attempt, and give it one more go.</Teaser>
+    <Description>A hills-focused Science and Domination civilization led by Gabriel. Project individual enemies for escalating combat strength, discover Fresh Sets through new land Trade Route destinations, and train adaptable units in Bouldering Gyms.</Description>
+    <Authors>SolusGo</Authors>
+    <SpecialThanks>Community Patch Project</SpecialThanks>
+    <HideSetupGame>0</HideSetupGame>
+    <Homepage>https://github.com/SolusGo/GabrielBoulderingCiv</Homepage>
+    <AffectsSavedGames>1</AffectsSavedGames>
+    <MinCompatibleSaveVersion>0</MinCompatibleSaveVersion>
+    <SupportsSinglePlayer>1</SupportsSinglePlayer>
+    <SupportsMultiplayer>0</SupportsMultiplayer>
+    <SupportsHotSeat>0</SupportsHotSeat>
+    <SupportsMac>0</SupportsMac>
+    <ReloadAudioSystem>0</ReloadAudioSystem>
+    <ReloadLandmarkSystem>0</ReloadLandmarkSystem>
+    <ReloadStrategicViewSystem>1</ReloadStrategicViewSystem>
+    <ReloadUnitSystem>0</ReloadUnitSystem>
+  </Properties>
+  <Dependencies>
+    <Mod id="d1b6328c-ff44-4b0d-aad7-c657f83610cd" minversion="1" maxversion="999" title="(1) Community Patch" />
+  </Dependencies>
+  <References />
+  <Blocks />
+  <Files>
+    <File md5="DFE16FE63DF64C4F5C908A6FDDC424E2" import="1">Art/Atlases/Gabriel_Civ_128.dds</File>
+    <File md5="41F798665891269C51108D7485ED17F2" import="1">Art/Atlases/Gabriel_Civ_256.dds</File>
+    <File md5="625D6D611253D4B4154A8610E0A1FCCB" import="1">Art/Atlases/Gabriel_Civ_32.dds</File>
+    <File md5="50BFD9B45DE8AA3DA0FB524566210741" import="1">Art/Atlases/Gabriel_Civ_45.dds</File>
+    <File md5="62C13C81ECAC9A0FC32AD1BC244E7BC4" import="1">Art/Atlases/Gabriel_Civ_64.dds</File>
+    <File md5="47A980EE30620AEA3F657FA1D36B7BDC" import="1">Art/Atlases/Gabriel_Civ_80.dds</File>
+    <File md5="B361C9D2231E657C0CC531057CCCC099" import="1">Art/Atlases/Gabriel_Civ_Alpha_128.dds</File>
+    <File md5="C0DC3D44493FD246A7F58D4387512EF5" import="1">Art/Atlases/Gabriel_Civ_Alpha_16.dds</File>
+    <File md5="B75BD720A7F2F72B566EB6A173493480" import="1">Art/Atlases/Gabriel_Civ_Alpha_24.dds</File>
+    <File md5="7EF26B97F07874BBC845141C7565EEB9" import="1">Art/Atlases/Gabriel_Civ_Alpha_32.dds</File>
+    <File md5="E4D1FD50BA71BF7D38BB806E18677759" import="1">Art/Atlases/Gabriel_Civ_Alpha_48.dds</File>
+    <File md5="10E4A32291F9B8233A98731185A72018" import="1">Art/Atlases/Gabriel_Civ_Alpha_64.dds</File>
+    <File md5="CD2CB2FC73B9473491EF98D952FF53DB" import="1">Art/Atlases/Gabriel_Leader_128.dds</File>
+    <File md5="B6BDEA25CD703BB9C870DC92A5618B79" import="1">Art/Atlases/Gabriel_Leader_256.dds</File>
+    <File md5="5758583C6FEA83930198AFA618E1AD24" import="1">Art/Atlases/Gabriel_Leader_64.dds</File>
+    <File md5="0A344B37DBC5A05FD9CA8FF39620CEC3" import="1">Art/Atlases/Gabriel_Objects_128.dds</File>
+    <File md5="11E8ACF98EA57BB94C9CA5BEDBA4DEB5" import="1">Art/Atlases/Gabriel_Objects_16.dds</File>
+    <File md5="45BE586119F51505ABDF7E2B3E47141B" import="1">Art/Atlases/Gabriel_Objects_256.dds</File>
+    <File md5="8993AC9EC24923EDDA595AAF7259B9CC" import="1">Art/Atlases/Gabriel_Objects_32.dds</File>
+    <File md5="2E4396986CC7F72C35149E751AE7ECAD" import="1">Art/Atlases/Gabriel_Objects_45.dds</File>
+    <File md5="E705D951CE45993B8AA151E21F6A593C" import="1">Art/Atlases/Gabriel_Objects_64.dds</File>
+    <File md5="D690639139EE5F1261662E22072DDAC0" import="1">Art/Atlases/Gabriel_Objects_80.dds</File>
+    <File md5="7EF26B97F07874BBC845141C7565EEB9" import="1">Art/Atlases/Gabriel_UnitFlag_32.dds</File>
+    <File md5="469481B677DBD43FE533B15F3232A7E3" import="1">Art/Gabriel_LeaderScene.xml</File>
+    <File md5="FBB2D6972774023B1265C2EB05AEFB0C" import="0">Art/Preview/Gabriel_Art_Preview.png</File>
+    <File md5="486E644F7C060ED3842C0D6E00738475" import="1">Art/Screens/Gabriel_Diplomacy.dds</File>
+    <File md5="E37EDC5E8FE905FBE2D2E208AACF3D70" import="1">Art/Screens/Gabriel_DOM.dds</File>
+    <File md5="7959825DAEEB99199BDB61F68614D64E" import="1">Art/Screens/Gabriel_Map.dds</File>
+    <File md5="65985FD6E0712298566517AE14C6BEC5" import="0">Art/Source/Gabriel_Bouldering_Concept.png</File>
+    <File md5="F2583989038088B711E13594AC72174E" import="0">Art/Source/Gabriel_Bouldering_Gym_Master.png</File>
+    <File md5="861AC8DC76C4659BA999AE03099ED0D3" import="0">Art/Source/Gabriel_DOM_Master.png</File>
+    <File md5="6A2E2DC1B1756B237C1B502E72B2737F" import="0">Art/Source/Gabriel_Gym_Hopper_Master.png</File>
+    <File md5="C31CA76B14656C019E33F1AEA6C3F39E" import="0">Art/Source/Gabriel_Leader_Master.png</File>
+    <File md5="2D82B8209F4AD8E53CE0FE151C2DA8A2" import="0">Docs/ART_GENERATION.md</File>
+    <File md5="B576DEED0FF06D88CB11C953BEE2BF31" import="0">IMPLEMENTATION_NOTES.md</File>
+    <File md5="22EE40ECA1CE45CC3B8332D5F083DAAB" import="0">Lua/Gabriel_Gameplay.lua</File>
+    <File md5="D31F4C56EABCE33954998B4597BC36E0" import="0">PATCHNOTES.md</File>
+    <File md5="175FB7ACF52612E2F10A12121C8807CE" import="0">README.md</File>
+    <File md5="A4E37AC130AA3B8B51529CD7760DE6BD" import="0">SQL/01_Gabriel_Core.sql</File>
+    <File md5="2DA34294561BAC9E364EDB94A7655CBB" import="0">SQL/02_Gabriel_Text.sql</File>
+    <File md5="8E00C2203AA74D1F341ED9F95260D7E3" import="0">TESTING.md</File>
+    <File md5="C899FF6F947ECC38376A7AB369E609F8" import="0">Tools/build_art.py</File>
+    <File md5="CFA793943771A9F5020635DB697530A8" import="0">Tools/update_modinfo_hashes.py</File>
+    <File md5="759CD8BF91293193122455E7CF031E97" import="0">Tools/validate_database.py</File>
+  </Files>
+  <Actions>
+    <OnModActivated>
+      <UpdateDatabase>SQL/01_Gabriel_Core.sql</UpdateDatabase>
+      <UpdateDatabase>SQL/02_Gabriel_Text.sql</UpdateDatabase>
+    </OnModActivated>
+  </Actions>
+  <EntryPoints>
+    <EntryPoint type="InGameUIAddin" file="Lua/Gabriel_Gameplay.lua">
+      <Name>Gabriel Gameplay</Name>
+      <Description>Runs project combat, Fresh Sets, and Gym Hopper progression.</Description>
+    </EntryPoint>
+  </EntryPoints>
+</Mod>
