@@ -1,28 +1,55 @@
-"""Build Civilization V DDS screens and icon atlases from the project masters.
+"""Build Civ V DDS assets; all icons are extracted from the supplied concept.
 
-Requires Pillow 12+. Run from the repository root. Every atlas size is rendered
-directly from a source master or vector recipe; no output is resized from a
-smaller output.
+Requires Pillow 12+. Every atlas size is rendered independently from its
+original concept crop. No icon is redrawn or generated. Use --icons-only to
+leave the full-screen art untouched while rebuilding icons and previews.
 """
 
+import argparse
+from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "Art" / "Source"
+CONCEPT = SOURCE / "Gabriel_Bouldering_Concept.png"
+CONCEPT_ICONS = SOURCE / "Concept_Icons"
 ATLASES = ROOT / "Art" / "Atlases"
 SCREENS = ROOT / "Art" / "Screens"
 PREVIEW = ROOT / "Art" / "Preview"
 
 RESAMPLE = Image.Resampling.LANCZOS
-DARK = (9, 32, 38, 255)
-DARKER = (3, 13, 17, 255)
-GOLD = (211, 158, 67, 255)
-PALE_GOLD = (245, 213, 139, 255)
-CHALK = (221, 218, 205, 255)
-TEAL = (30, 91, 101, 255)
+
+# Pixel coordinates in the unmodified 1448x1086 concept sheet. These bounds
+# contain the existing gold frames, but not their labels or surrounding panels.
+CONCEPT_ICON_BOXES = {
+    "Civ": (18, 846, 174, 1008),
+    "Leader": (189, 842, 350, 1009),
+    "Gym_Hopper": (943, 851, 1060, 973),
+    "Bouldering_Gym": (1068, 851, 1188, 973),
+    "One_More_Go": (1194, 851, 1310, 973),
+    "Fresh_Sets": (1317, 851, 1433, 972),
+    "Route_Reading": (1167, 721, 1233, 787),
+}
+
+# Preserve the existing database portrait indices. Promotions without their
+# own concept badge reuse the relevant supplied art instead of new symbols.
+OBJECT_ICON_NAMES = (
+    "Gym_Hopper",       # 0: unique unit
+    "Bouldering_Gym",   # 1: unique building
+    "One_More_Go",      # 2: temporary project attack bonuses
+    "Fresh_Sets",       # 3: secondary ability
+    "Gym_Hopper",       # 4: Try Something New
+    "Route_Reading",    # 5: Hill Familiarity
+    "Route_Reading",    # 6: Route Reading
+    "One_More_Go",      # 7: Determination I / II / III
+)
+CIV_SIZES = (256, 128, 80, 64, 45, 32)
+LEADER_SIZES = (256, 128, 64)
+OBJECT_SIZES = (256, 128, 80, 64, 45, 32, 16)
+ALPHA_SIZES = (128, 64, 48, 32, 24, 16)
 
 
 def cover(image: Image.Image, size: tuple[int, int], center=(0.5, 0.5)) -> Image.Image:
@@ -41,120 +68,120 @@ def save_dds(image: Image.Image, path: Path) -> None:
     image.convert("RGBA").save(path, format="DDS", pixel_format="DXT5")
 
 
-def circular_photo(source: Image.Image, size: int, center=(0.5, 0.5)) -> Image.Image:
-    supersample = 4
-    large = size * supersample
-    inset = round(large * 0.07)
-    ring = max(3, round(large * 0.025))
-    canvas = Image.new("RGBA", (large, large), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas)
-    draw.ellipse((0, 0, large - 1, large - 1), fill=DARKER, outline=GOLD, width=ring * 2)
-    portrait = cover(source, (large - inset * 2, large - inset * 2), center)
-    mask = Image.new("L", portrait.size, 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, portrait.width - 1, portrait.height - 1), fill=255)
-    portrait.putalpha(mask)
-    canvas.alpha_composite(portrait, (inset, inset))
-    draw.ellipse((inset, inset, large - inset - 1, large - inset - 1),
-                 outline=PALE_GOLD, width=ring)
-    return canvas.resize((size, size), RESAMPLE)
+def ellipse_mask(size: tuple[int, int], inset: int = 0) -> Image.Image:
+    """An antialiased mask outside the existing badge, not a replacement frame."""
+    scale = 4
+    width, height = size
+    mask = Image.new("L", (width * scale, height * scale), 0)
+    ImageDraw.Draw(mask).ellipse(
+        (inset * scale, inset * scale,
+         (width - inset) * scale - 1, (height - inset) * scale - 1),
+        fill=255,
+    )
+    return mask.resize(size, RESAMPLE)
 
 
-def climber_mark(size: int, alpha_only: bool = False) -> Image.Image:
-    """Render the civilization's climbing silhouette at a requested size."""
-    supersample = 4
-    n = size * supersample
-    s = n / 256.0
-    transparent = (0, 0, 0, 0)
-    canvas = Image.new("RGBA", (n, n), transparent if alpha_only else DARK)
-    draw = ImageDraw.Draw(canvas)
-    ink = (255, 255, 255, 255) if alpha_only else GOLD
-    width = max(4, round(14 * s))
-
-    if not alpha_only:
-        draw.ellipse((4 * s, 4 * s, 252 * s, 252 * s), fill=DARK,
-                     outline=GOLD, width=max(3, round(7 * s)))
-        draw.ellipse((15 * s, 15 * s, 241 * s, 241 * s),
-                     outline=(105, 73, 28, 255), width=max(2, round(3 * s)))
-
-    # Head and torso leaning into the wall.
-    draw.ellipse((117 * s, 43 * s, 153 * s, 79 * s), fill=ink)
-    draw.line((128 * s, 79 * s, 105 * s, 137 * s), fill=ink, width=width + round(4 * s))
-    # Right arm reaching for the final hold; left arm bracing.
-    draw.line((122 * s, 91 * s, 169 * s, 61 * s, 187 * s, 35 * s), fill=ink, width=width)
-    draw.ellipse((180 * s, 25 * s, 194 * s, 41 * s), fill=ink)
-    draw.line((116 * s, 99 * s, 78 * s, 83 * s, 58 * s, 101 * s), fill=ink, width=width)
-    draw.ellipse((49 * s, 94 * s, 64 * s, 109 * s), fill=ink)
-    # Hips and widely placed legs.
-    draw.ellipse((91 * s, 126 * s, 119 * s, 151 * s), fill=ink)
-    draw.line((101 * s, 143 * s, 65 * s, 176 * s, 39 * s, 207 * s), fill=ink, width=width + round(2 * s))
-    draw.ellipse((28 * s, 201 * s, 48 * s, 215 * s), fill=ink)
-    draw.line((109 * s, 143 * s, 149 * s, 166 * s, 181 * s, 202 * s), fill=ink, width=width + round(2 * s))
-    draw.ellipse((174 * s, 197 * s, 195 * s, 211 * s), fill=ink)
-    # Three small holds make the silhouette read as climbing rather than running.
-    for x, y, rx, ry in ((42, 77, 10, 6), (188, 22, 9, 6), (190, 207, 11, 6)):
-        draw.ellipse(((x - rx) * s, (y - ry) * s, (x + rx) * s, (y + ry) * s), fill=ink)
-
-    return canvas.resize((size, size), RESAMPLE)
+def extract_concept_icons() -> dict[str, Image.Image]:
+    """Keep every RGB pixel in each source badge; mask only its outside corners."""
+    with Image.open(CONCEPT) as image:
+        concept = image.convert("RGBA")
+    if concept.size != (1448, 1086):
+        raise ValueError("Concept dimensions changed; review the explicit icon crop bounds.")
+    icons = {}
+    for name, box in CONCEPT_ICON_BOXES.items():
+        icon = concept.crop(box)
+        icon.putalpha(ellipse_mask(icon.size))
+        icons[name] = icon
+    return icons
 
 
-def symbolic_icon(size: int, kind: str) -> Image.Image:
-    supersample = 4
-    n = size * supersample
-    s = n / 256.0
-    canvas = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas)
-    ring = max(3, round(7 * s))
-    line = max(4, round(12 * s))
-    draw.ellipse((4 * s, 4 * s, 252 * s, 252 * s), fill=DARKER, outline=GOLD, width=ring)
-    draw.ellipse((16 * s, 16 * s, 240 * s, 240 * s), outline=(87, 106, 89, 255), width=max(2, ring // 2))
+def fit_icon(source: Image.Image, size: int) -> Image.Image:
+    """Contain the original badge, including its frame, without stretching it."""
+    inset = max(1, round(size * 0.025))
+    inner = size - inset * 2
+    icon = ImageOps.contain(source, (inner, inner), RESAMPLE)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.alpha_composite(icon, ((size - icon.width) // 2, (size - icon.height) // 2))
+    return canvas
 
-    if kind == "one_more_go":
-        # Chalked fist with a small upward spark.
-        draw.rounded_rectangle((82 * s, 92 * s, 173 * s, 190 * s), radius=22 * s,
-                               fill=CHALK, outline=GOLD, width=max(2, round(4 * s)))
-        for x in (88, 108, 128, 148):
-            draw.rounded_rectangle((x * s, 59 * s, (x + 22) * s, 119 * s),
-                                   radius=10 * s, fill=CHALK)
-        draw.polygon([(185 * s, 42 * s), (193 * s, 62 * s), (214 * s, 69 * s),
-                      (195 * s, 79 * s), (190 * s, 101 * s), (179 * s, 81 * s),
-                      (158 * s, 78 * s), (176 * s, 65 * s)], fill=GOLD)
-    elif kind == "fresh_sets":
-        # Chalk bag and fresh route dots.
-        draw.ellipse((70 * s, 58 * s, 178 * s, 97 * s), fill=CHALK, outline=GOLD, width=ring)
-        draw.polygon([(77 * s, 82 * s), (172 * s, 82 * s), (160 * s, 198 * s),
-                      (91 * s, 198 * s)], fill=(93, 91, 81, 255), outline=GOLD)
-        draw.arc((59 * s, 38 * s, 190 * s, 119 * s), 198, 342, fill=GOLD, width=line)
-        for x, y in ((195, 73), (205, 110), (185, 142)):
-            draw.ellipse(((x - 7) * s, (y - 7) * s, (x + 7) * s, (y + 7) * s), fill=PALE_GOLD)
-    elif kind == "try_new":
-        # Three holds and a changing path.
-        for x, y in ((66, 177), (121, 119), (190, 67)):
-            draw.ellipse(((x - 18) * s, (y - 12) * s, (x + 18) * s, (y + 12) * s), fill=GOLD)
-        draw.line((70 * s, 161 * s, 112 * s, 129 * s, 177 * s, 78 * s), fill=CHALK, width=line)
-        draw.polygon([(175 * s, 55 * s), (211 * s, 62 * s), (190 * s, 91 * s)], fill=CHALK)
-    elif kind == "hill_familiarity":
-        draw.polygon([(42 * s, 190 * s), (111 * s, 70 * s), (143 * s, 125 * s),
-                      (171 * s, 84 * s), (220 * s, 190 * s)], fill=TEAL, outline=GOLD)
-        draw.line((68 * s, 170 * s, 111 * s, 98 * s, 132 * s, 134 * s), fill=CHALK, width=line)
-        draw.ellipse((103 * s, 87 * s, 119 * s, 103 * s), fill=CHALK)
-    elif kind == "route_reading":
-        draw.polygon([(35 * s, 190 * s), (104 * s, 61 * s), (146 * s, 135 * s),
-                      (173 * s, 96 * s), (226 * s, 190 * s)], fill=TEAL, outline=GOLD)
-        draw.line((54 * s, 188 * s, 88 * s, 154 * s, 116 * s, 163 * s,
-                   145 * s, 126 * s, 182 * s, 141 * s, 208 * s, 109 * s),
-                  fill=PALE_GOLD, width=line)
-        draw.ellipse((200 * s, 99 * s, 218 * s, 117 * s), fill=PALE_GOLD)
-    elif kind == "determination":
-        draw.polygon([(128 * s, 42 * s), (202 * s, 128 * s), (128 * s, 216 * s),
-                      (54 * s, 128 * s)], fill=TEAL, outline=GOLD)
-        draw.polygon([(128 * s, 73 * s), (177 * s, 130 * s), (128 * s, 188 * s),
-                      (79 * s, 130 * s)], fill=GOLD)
-        draw.polygon([(128 * s, 91 * s), (158 * s, 128 * s), (128 * s, 164 * s),
-                      (98 * s, 128 * s)], fill=DARKER)
-    else:
-        raise ValueError(f"Unknown icon kind: {kind}")
 
-    return canvas.resize((size, size), RESAMPLE)
+def extract_gold_symbol(badge: Image.Image) -> Image.Image:
+    """Derive the white alpha/flag silhouette from the supplied gold motif.
+
+    The interior ellipse excludes the gold frame. Gold-vs-teal chroma separates
+    the actual climber and rock; small isolated texture specks are discarded.
+    No hand-drawn replacement geometry is used.
+    """
+    width, height = badge.size
+    matte = Image.new("L", badge.size, 0)
+    source_pixels = badge.load()
+    matte.putdata([
+        round(max(0.0, min(1.0, (min(r - b, 2 * (g - b)) - 10) / 18.0)) * 255)
+        for y in range(height) for x in range(width)
+        for r, g, b, _ in (source_pixels[x, y],)
+    ])
+    interior = ellipse_mask(badge.size, inset=round(min(badge.size) * 0.11))
+    matte = ImageChops.multiply(matte, interior)
+    matte = matte.point(lambda value: 0 if value < 32 else value)
+
+    # Keep sizeable pieces of the source symbol and remove isolated gold flecks.
+    pixels = matte.load()
+    visited = set()
+    for y in range(height):
+        for x in range(width):
+            if (x, y) in visited or pixels[x, y] < 32:
+                continue
+            component = []
+            pending = deque([(x, y)])
+            visited.add((x, y))
+            while pending:
+                px, py = pending.popleft()
+                component.append((px, py))
+                for nx, ny in ((px - 1, py), (px + 1, py), (px, py - 1), (px, py + 1)):
+                    if (0 <= nx < width and 0 <= ny < height
+                            and (nx, ny) not in visited and pixels[nx, ny] >= 32):
+                        visited.add((nx, ny))
+                        pending.append((nx, ny))
+            if len(component) < 16:
+                for px, py in component:
+                    pixels[px, py] = 0
+
+    matte = matte.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    symbol = Image.new("RGBA", badge.size, (255, 255, 255, 0))
+    symbol.putalpha(matte)
+    bounds = matte.getbbox()
+    if bounds is None:
+        raise ValueError("No gold symbol found in the supplied concept badge.")
+    return symbol.crop(bounds)
+
+
+def object_atlas(icons: dict[str, Image.Image], size: int) -> Image.Image:
+    row = Image.new("RGBA", (size * len(OBJECT_ICON_NAMES), size), (0, 0, 0, 0))
+    for index, name in enumerate(OBJECT_ICON_NAMES):
+        row.alpha_composite(fit_icon(icons[name], size), (index * size, 0))
+    return row
+
+
+def build_icons() -> dict[str, Image.Image]:
+    icons = extract_concept_icons()
+    # The Gym Hopper badge repeats the civ's motif without the background rocks
+    # in the large civ portrait, making it the clean source for both UI masks.
+    icons["Civ_Alpha"] = extract_gold_symbol(icons["Gym_Hopper"])
+    icons["Unit_Flag"] = extract_gold_symbol(icons["Gym_Hopper"])
+    CONCEPT_ICONS.mkdir(parents=True, exist_ok=True)
+    for name, icon in icons.items():
+        icon.save(CONCEPT_ICONS / f"Gabriel_{name}_Concept.png", optimize=True)
+
+    for size in CIV_SIZES:
+        save_dds(fit_icon(icons["Civ"], size), ATLASES / f"Gabriel_Civ_{size}.dds")
+    for size in LEADER_SIZES:
+        save_dds(fit_icon(icons["Leader"], size), ATLASES / f"Gabriel_Leader_{size}.dds")
+    for size in OBJECT_SIZES:
+        save_dds(object_atlas(icons, size), ATLASES / f"Gabriel_Objects_{size}.dds")
+    for size in ALPHA_SIZES:
+        save_dds(fit_icon(icons["Civ_Alpha"], size), ATLASES / f"Gabriel_Civ_Alpha_{size}.dds")
+    save_dds(fit_icon(icons["Unit_Flag"], 32), ATLASES / "Gabriel_UnitFlag_32.dds")
+    return icons
 
 
 def add_dom_shading(image: Image.Image) -> Image.Image:
@@ -167,56 +194,58 @@ def add_dom_shading(image: Image.Image) -> Image.Image:
     return Image.alpha_composite(image, shade)
 
 
-def build() -> None:
+def build_screens() -> None:
     leader = Image.open(SOURCE / "Gabriel_Leader_Master.png").convert("RGBA")
     dom_master = Image.open(SOURCE / "Gabriel_DOM_Master.png").convert("RGBA")
-    hopper = Image.open(SOURCE / "Gabriel_Gym_Hopper_Master.png").convert("RGBA")
     gym = Image.open(SOURCE / "Gabriel_Bouldering_Gym_Master.png").convert("RGBA")
+    save_dds(cover(leader, (1600, 900), center=(0.50, 0.50)), SCREENS / "Gabriel_Diplomacy.dds")
+    save_dds(add_dom_shading(cover(dom_master, (1600, 900), center=(0.50, 0.48))),
+             SCREENS / "Gabriel_DOM.dds")
+    save_dds(cover(gym, (1600, 900), center=(0.50, 0.48)), SCREENS / "Gabriel_Map.dds")
 
-    diplomacy = cover(leader, (1600, 900), center=(0.50, 0.50))
-    dom = add_dom_shading(cover(dom_master, (1600, 900), center=(0.50, 0.48)))
-    map_image = cover(gym, (1600, 900), center=(0.50, 0.48))
-    save_dds(diplomacy, SCREENS / "Gabriel_Diplomacy.dds")
-    save_dds(dom, SCREENS / "Gabriel_DOM.dds")
-    save_dds(map_image, SCREENS / "Gabriel_Map.dds")
 
-    for size in (256, 128, 80, 64, 45, 32, 16):
-        if size != 16:
-            save_dds(climber_mark(size), ATLASES / f"Gabriel_Civ_{size}.dds")
-        row = Image.new("RGBA", (size * 8, size), (0, 0, 0, 0))
-        row.alpha_composite(circular_photo(hopper, size, center=(0.49, 0.48)), (0, 0))
-        row.alpha_composite(circular_photo(gym, size, center=(0.50, 0.50)), (size, 0))
-        row.alpha_composite(symbolic_icon(size, "one_more_go"), (size * 2, 0))
-        row.alpha_composite(symbolic_icon(size, "fresh_sets"), (size * 3, 0))
-        row.alpha_composite(symbolic_icon(size, "try_new"), (size * 4, 0))
-        row.alpha_composite(symbolic_icon(size, "hill_familiarity"), (size * 5, 0))
-        row.alpha_composite(symbolic_icon(size, "route_reading"), (size * 6, 0))
-        row.alpha_composite(symbolic_icon(size, "determination"), (size * 7, 0))
-        save_dds(row, ATLASES / f"Gabriel_Objects_{size}.dds")
-
-    # Tight face crop for a readable leader portrait in the civ-select UI.
-    leader_portrait = leader.crop((300, 70, 1050, 970))
-    for size in (256, 128, 64):
-        save_dds(circular_photo(leader_portrait, size, center=(0.5, 0.28)),
-                 ATLASES / f"Gabriel_Leader_{size}.dds")
-
-    for size in (128, 64, 48, 32, 24, 16):
-        save_dds(climber_mark(size, alpha_only=True),
-                 ATLASES / f"Gabriel_Civ_Alpha_{size}.dds")
-
-    save_dds(climber_mark(32, alpha_only=True), ATLASES / "Gabriel_UnitFlag_32.dds")
-
+def build_previews(icons: dict[str, Image.Image]) -> None:
     PREVIEW.mkdir(parents=True, exist_ok=True)
     preview = Image.new("RGB", (1600, 1120), (7, 18, 22))
-    preview.paste(dom.convert("RGB").resize((960, 540), RESAMPLE), (0, 0))
-    preview.paste(diplomacy.convert("RGB").resize((640, 360), RESAMPLE), (960, 0))
-    preview.paste(map_image.convert("RGB").resize((640, 360), RESAMPLE), (960, 360))
-    preview.paste(climber_mark(256).convert("RGBA"), (45, 715), climber_mark(256))
-    object_preview = Image.open(ATLASES / "Gabriel_Objects_128.dds").convert("RGBA")
-    preview.paste(object_preview, (355, 800), object_preview)
+    for filename, size, position in (
+        ("Gabriel_DOM.dds", (960, 540), (0, 0)),
+        ("Gabriel_Diplomacy.dds", (640, 360), (960, 0)),
+        ("Gabriel_Map.dds", (640, 360), (960, 360)),
+    ):
+        with Image.open(SCREENS / filename) as screen:
+            preview.paste(screen.convert("RGB").resize(size, RESAMPLE), position)
+    civ = fit_icon(icons["Civ"], 256)
+    preview.paste(civ, (45, 715), civ)
+    with Image.open(ATLASES / "Gabriel_Objects_128.dds") as atlas:
+        objects = atlas.convert("RGBA")
+        preview.paste(objects, (355, 800), objects)
     preview.save(PREVIEW / "Gabriel_Art_Preview.png", optimize=True)
+
+    # Native-size QA: all supplied badges plus their monochrome derivatives.
+    names = tuple(CONCEPT_ICON_BOXES) + ("Civ_Alpha", "Unit_Flag")
+    sheet = Image.new("RGB", (144 * len(names), 340), (14, 30, 35))
+    draw = ImageDraw.Draw(sheet)
+    font = ImageFont.load_default(size=14)
+    for column, name in enumerate(names):
+        center = column * 144 + 72
+        draw.text((center, 166), name.replace("_", " "), font=font,
+                  fill=(240, 221, 180), anchor="mt")
+        for size, y in ((128, 24), (64, 205), (32, 292)):
+            icon = fit_icon(icons[name], size)
+            sheet.paste(icon, (center - size // 2, y), icon)
+    sheet.save(PREVIEW / "Gabriel_Concept_Icons.png", optimize=True)
+
+
+def build(icons_only: bool = False) -> None:
+    if not icons_only:
+        build_screens()
+    icons = build_icons()
+    build_previews(icons)
 
 
 if __name__ == "__main__":
-    build()
-    print("Built Gabriel DDS screens, atlases, and preview.")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--icons-only", action="store_true")
+    args = parser.parse_args()
+    build(icons_only=args.icons_only)
+    print("Built concept-derived Gabriel icons, DDS atlases, and previews.")

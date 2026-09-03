@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import re
 import sqlite3
 import sys
@@ -16,6 +17,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from PIL import Image
+
+import build_art
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -306,6 +309,34 @@ def atlas_path(filename: str) -> Path:
 
 
 def validate_art(db: sqlite3.Connection) -> None:
+    expected_portraits = [
+        ("Civilizations", "CIVILIZATION_GABRIEL_BOULDER", "CIV_COLOR", 0),
+        ("Leaders", "LEADER_GABRIEL_BOULDER", "LEADER", 0),
+        ("Units", "UNIT_GABRIEL_GYM_HOPPER", "OBJECT", 0),
+        ("Buildings", "BUILDING_GABRIEL_BOULDERING_GYM", "OBJECT", 1),
+    ]
+    promotion_slots = {
+        "TRY_SOMETHING_NEW": 4, "HILL_FAMILIARITY": 5, "ROUTE_READING": 6,
+        "DETERMINATION_1": 7, "DETERMINATION_2": 7, "DETERMINATION_3": 7,
+        "PROJECT_ATTACK_5": 2, "PROJECT_ATTACK_10": 2, "PROJECT_ATTACK_15": 2,
+    }
+    expected_portraits.extend(
+        ("UnitPromotions", f"PROMOTION_GABRIEL_{name}", "OBJECT", slot)
+        for name, slot in promotion_slots.items()
+    )
+    for table, row_type, atlas, slot in expected_portraits:
+        actual = db.execute(
+            f"SELECT IconAtlas, PortraitIndex FROM {table} WHERE Type = ?", (row_type,)
+        ).fetchone()
+        require(actual == (f"GABRIEL_BOULDER_{atlas}_ATLAS", slot),
+                f"Incorrect icon atlas or portrait slot for {row_type}: {actual}")
+    require(scalar(db, "SELECT AlphaIconAtlas FROM Civilizations "
+                   "WHERE Type='CIVILIZATION_GABRIEL_BOULDER'")
+            == "GABRIEL_BOULDER_CIV_ALPHA_ATLAS", "Incorrect civilization alpha atlas")
+    flag = db.execute("SELECT UnitFlagAtlas, UnitFlagIconOffset FROM Units "
+                      "WHERE Type='UNIT_GABRIEL_GYM_HOPPER'").fetchone()
+    require(flag == ("GABRIEL_BOULDER_UNIT_FLAG_ATLAS", 0), "Incorrect Gym Hopper flag")
+
     atlas_rows = db.execute(
         "SELECT Atlas, IconSize, Filename, CAST(IconsPerRow AS INTEGER), "
         "CAST(IconsPerColumn AS INTEGER) FROM IconTextureAtlases "
@@ -337,6 +368,56 @@ def validate_art(db: sqlite3.Connection) -> None:
     require(scene.tag == "LeaderScene", "Leader scene XML has the wrong root")
     require(scene.attrib.get("FallbackImage") == "Gabriel_Diplomacy.dds",
             "Leader scene does not reference the diplomacy fallback")
+
+
+def validate_concept_icons() -> None:
+    require(build_art.CONCEPT.is_file(), "Missing supplied concept sheet")
+    require(hashlib.sha256(build_art.CONCEPT.read_bytes()).hexdigest()
+            == "17efd7afadb18f4c2c98c6d9a09348a07f537d3042f5922d29da238b137ae026",
+            "The supplied concept sheet changed; review icon provenance and crop bounds")
+    require(build_art.OBJECT_ICON_NAMES == (
+        "Gym_Hopper", "Bouldering_Gym", "One_More_Go", "Fresh_Sets",
+        "Gym_Hopper", "Route_Reading", "Route_Reading", "One_More_Go",
+    ), "Concept icons no longer match the database portrait slots")
+    icons = build_art.extract_concept_icons()
+    with Image.open(build_art.CONCEPT) as concept:
+        for name, box in build_art.CONCEPT_ICON_BOXES.items():
+            require(icons[name].convert("RGB").tobytes()
+                    == concept.crop(box).convert("RGB").tobytes(),
+                    f"{name} has been redrawn or altered instead of cropped from the concept")
+            alpha = icons[name].getchannel("A")
+            require(alpha.getpixel((0, 0)) == 0
+                    and alpha.getpixel((alpha.width // 2, alpha.height // 2)) == 255,
+                    f"{name} is missing its transparent outside/opaque interior")
+    for name in ("Civ_Alpha", "Unit_Flag"):
+        icons[name] = build_art.extract_gold_symbol(icons["Gym_Hopper"])
+        require(icons[name].getchannel("A").getextrema() == (0, 255),
+                f"{name} has no usable silhouette transparency")
+    for name, expected in icons.items():
+        path = build_art.CONCEPT_ICONS / f"Gabriel_{name}_Concept.png"
+        require(path.is_file(), f"Missing extracted source: {path.name}")
+        with Image.open(path) as actual:
+            require(actual.size == expected.size
+                    and actual.convert("RGBA").tobytes() == expected.tobytes(),
+                    f"Saved concept crop is stale or altered: {path.name}")
+
+    expected_atlases = {}
+    for name, sizes in (("Civ", build_art.CIV_SIZES), ("Leader", build_art.LEADER_SIZES),
+                        ("Civ_Alpha", build_art.ALPHA_SIZES)):
+        for size in sizes:
+            expected_atlases[f"Gabriel_{name}_{size}.dds"] = build_art.fit_icon(icons[name], size)
+    for size in build_art.OBJECT_SIZES:
+        expected_atlases[f"Gabriel_Objects_{size}.dds"] = build_art.object_atlas(icons, size)
+    expected_atlases["Gabriel_UnitFlag_32.dds"] = build_art.fit_icon(icons["Unit_Flag"], 32)
+    require(len(expected_atlases) == 23, "Expected all 23 concept-derived atlas files")
+    for filename, expected in expected_atlases.items():
+        encoded = io.BytesIO()
+        expected.save(encoded, format="DDS", pixel_format="DXT5")
+        path = build_art.ATLASES / filename
+        require(path.is_file() and path.read_bytes() == encoded.getvalue(),
+                f"Atlas does not match a fresh build from the concept: {filename}")
+    require((build_art.PREVIEW / "Gabriel_Concept_Icons.png").is_file(),
+            "Missing concept icon preview")
 
 
 def validate_lua() -> None:
@@ -386,6 +467,8 @@ def validate_modinfo() -> None:
         require(path.is_file(), f"modinfo lists a missing file: {relative}")
         require(entry.attrib.get("md5", "").upper() == md5(path),
                 f"modinfo MD5 is stale for {relative}")
+        if relative.startswith(("Art/Atlases/", "Art/Screens/")) and relative.endswith(".dds"):
+            require(entry.attrib.get("import") == "1", f"DDS is not imported into VFS: {relative}")
     for required in (
         "SQL/01_Gabriel_Core.sql", "SQL/02_Gabriel_Text.sql",
         "Lua/Gabriel_Gameplay.lua", "Art/Gabriel_LeaderScene.xml",
@@ -403,6 +486,7 @@ def main() -> int:
         apply_sql(database)
         validate_database_rows(database)
         validate_art(database)
+        validate_concept_icons()
         validate_lua()
         validate_modinfo()
     except (ValidationError, ET.ParseError) as exc:
@@ -411,7 +495,7 @@ def main() -> int:
     finally:
         if "database" in locals():
             database.close()
-    print("Validation passed: database, localization, art, Lua hooks, and modinfo are consistent.")
+    print("Validation passed: database, localization, concept icons, art, Lua hooks, and modinfo are consistent.")
     return 0
 
 

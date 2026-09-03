@@ -20,4 +20,32 @@ The following masters were made with Codex's built-in image generation mode and 
 3. **Gym Hopper:** Identity-preserving square unit portrait. Same climber in three-quarter rear view with backpack, shorts, climbing shoes, and chalk bag in an alpine boulder field, bright morning, full body and readable silhouette, no border, UI, text, or logo.
 4. **Bouldering Gym:** Square stylized concept art of a modern timber-and-dark-metal alpine bouldering gym with a faceted climbing-wall facade, warm windows, cool teal dusk mountains, secondary people for scale, no text, signage, logo, UI, or border.
 
-`Tools/build_art.py` converts those masters into independently rendered DXT5 screens and atlases. Symbolic ability and promotion art is drawn deterministically by the build script so its silhouettes remain readable at 16–45 pixels.
+The leader, Dawn of Man, and gym masters still supply the three full-screen DXT5 images. The generated Gym Hopper master is retained as an archival source, but it is no longer used for an icon. None of these generated masters supplies an icon after the correction below.
+
+## Concept icon correction — 2026-09-04
+
+All colour icons now come directly from the supplied 1448×1086 concept sheet. No image generation or redrawing was used for this correction. `Tools/build_art.py` records explicit crop coordinates, preserves the original RGB artwork and gold frames, masks the outside corners, and independently resizes each crop into every required atlas size.
+
+| Concept badge | Game asset / object atlas slot |
+| --- | --- |
+| Bottom-left Civ Icon | Civilization colour atlas, slot 0 |
+| Bottom-left Leader Icon | Leader atlas, slot 0 |
+| Gym Hopper | Object slots 0 (unit) and 4 (Try Something New) |
+| Bouldering Gym | Object slot 1 |
+| One More Go fist | Object slots 2 (project attack bonuses) and 7 (Determination stages) |
+| Fresh Sets chalk bag | Object slot 3, retained for ability/UI use |
+| Route Reading mountain | Object slots 5 (Hill Familiarity) and 6 (Route Reading) |
+
+The concept has no separate Try Something New, Hill Familiarity, or Determination badges, so those promotions reuse the related concept symbols. Fresh Sets has no separate icon-bearing gameplay database row; its supplied badge is packaged in its existing atlas slot without adding a new UI or mechanic.
+
+The civilization alpha icon and Gym Hopper unit flag are white silhouettes extracted from the concept's Gym Hopper motif. That badge repeats the civilization's climber-and-rock design without the background rocks in the larger civ portrait. Gold/teal colour separation, frame exclusion, and removal of small isolated specks produce the required transparent masks; no substitute figure is drawn.
+
+Seven exact colour crops and two monochrome derivatives are saved in `Art/Source/Concept_Icons`. See `Art/Preview/Gabriel_Concept_Icons.png` for the 128px, 64px, and 32px preview. All 23 registered DDS atlases are rebuilt. The source sheet, full-screen art, SQL portrait indices, gameplay, and save state remain unchanged.
+
+```powershell
+python Tools/build_art.py --icons-only
+python Tools/update_modinfo_hashes.py
+python Tools/validate_database.py
+```
+
+The validator checks the concept SHA-256, exact source pixels, saved crop transparency, database-to-atlas slots, and byte-for-byte reproducibility of every DXT5 atlas. Source resolution is limited to the supplied sheet (roughly 116–167 pixels per main badge and 66 pixels for Route Reading); larger sizes are faithful resamples, not invented detail. In-game rendering still requires the manual presentation checks in `TESTING.md`.

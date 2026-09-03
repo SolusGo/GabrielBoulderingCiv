@@ -1,5 +1,14 @@
 # Patch Notes
 
+## Version 1 — Concept icon correction — 2026-09-04
+
+- Replaced the civilization, leader, unit, building, ability, and promotion icons with direct crops of the supplied concept artwork, retaining its original gold borders.
+- Rebuilt all 23 registered atlas files and extracted the civilization alpha icon and unit flag from the supplied climber motif.
+- Reused the concept's related badges for promotions without dedicated artwork; preserved all existing portrait indices and filenames.
+- Added reproducible source crops, an icon preview, provenance documentation, and regression checks for exact concept pixels, atlas contents, VFS imports, and database slot mappings.
+- Added an icons-only rebuild option and excluded Python bytecode caches from the mod manifest.
+- Gameplay, localization, saves, full-screen art, and mod version are unchanged. Offline validation and visual asset inspection are covered; in-game presentation remains a manual check.
+
 ## Version 1 — Initial release
 
 - Added Gabriel, The Relentless Projector, as leader of The Boulder Circuit.

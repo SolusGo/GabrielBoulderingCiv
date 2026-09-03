@@ -79,7 +79,11 @@ More technical detail and the full edge-case policy are in [IMPLEMENTATION_NOTES
 
 ## Art
 
-The supplied concept sheet is preserved at `Art/Source/Gabriel_Bouldering_Concept.png`. Custom leader, Dawn of Man, Gym Hopper, and Bouldering Gym masters are also retained in `Art/Source`. The reproducible Pillow pipeline creates DXT5 DDS screens, all registered atlas sizes, a unit flag, and the preview above.
+All colour icons are cropped directly from the supplied concept sheet, preserving its artwork and gold frames. This includes the civilization, leader, Gym Hopper, Bouldering Gym, One More Go fist, Fresh Sets chalk bag, and Route Reading mountain. Related promotions reuse these badges. The alpha icon and unit flag are monochrome extractions of the supplied climber motif, not redrawn replacements.
+
+![Concept icon preview](Art/Preview/Gabriel_Concept_Icons.png)
+
+The original sheet is preserved at `Art/Source/Gabriel_Bouldering_Concept.png`, with extracted icons in `Art/Source/Concept_Icons`. Existing custom masters remain in `Art/Source`; the full-screen diplomacy, Dawn of Man, and map artwork is unchanged. Asset provenance and slot mappings are recorded in [Docs/ART_GENERATION.md](Docs/ART_GENERATION.md).
 
 To rebuild the game art with Python 3 and Pillow 12+:
 
@@ -87,7 +91,7 @@ To rebuild the game art with Python 3 and Pillow 12+:
 python Tools/build_art.py
 ```
 
-Every atlas size is rendered directly from a source master or vector recipe rather than being resized from a smaller atlas.
+Use `python Tools/build_art.py --icons-only` to rebuild icons without touching full-screen art. Every atlas size is rendered independently from its original concept crop, not from another atlas size. Larger icons are resampled from the supplied sheet's resolution; no new details are generated.
 
 ## Validation
 
@@ -98,7 +102,7 @@ python Tools/update_modinfo_hashes.py
 python Tools/validate_database.py
 ```
 
-The validator applies both SQL files to an in-memory copy of the database, then verifies unique rows, stats, promotions, copied Barracks experience, localization, diplomacy coverage, atlas sizes, screen sizes, leader scene XML, Lua hook presence, dependency metadata, file existence, and every modinfo MD5.
+The validator applies both SQL files to an in-memory copy of the database, then verifies unique rows, stats, promotions, copied Barracks experience, localization, diplomacy coverage, exact concept crops, reproducible DDS atlases, portrait slots, atlas sizes, screen sizes, leader scene XML, Lua hook presence, dependency metadata, VFS imports, file existence, and every modinfo MD5. These are offline checks, not a claim of in-game testing.
 
 ## Repository map
 

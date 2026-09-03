@@ -2,11 +2,22 @@
 
 The offline validator covers database and asset integrity. The cases below should be exercised in Civilization V with only the Community Patch and this mod enabled, then repeated in a heavier mod set if desired.
 
+## Concept icon correction — offline results, 2026-09-04
+
+- Passed the full database, localization, atlas, source-provenance, VFS import, and manifest-hash validator.
+- Confirmed all 23 atlases, nine extracted PNGs, and previews reproduce byte-for-byte with an icons-only rebuild.
+- Confirmed regression checks reject swapped object slots, altered source pixels, stale 45px DDS data, and an incorrect unit portrait index without changing project files or the on-disk game database.
+- Visually inspected the concept crops and decoded 45px/16px object atlases plus the 16px alpha icon; original badges and gold borders are retained.
+- Confirmed no SQL, Lua, original concept, leader-scene XML, or full-screen DDS changes. In-game and ModBuddy testing were not performed for this correction.
+
 ## Setup and presentation
 
 - [ ] Mod appears in the browser and refuses activation without the Community Patch dependency.
 - [ ] The Boulder Circuit is selectable by a human and available to the AI.
 - [ ] Civilization colour icon, alpha icon, leader portrait, map image, Dawn of Man image, unit/building icons, promotion icons, and Gym Hopper flag render without pink squares or atlas bleed.
+- [ ] Setup, Dawn of Man unique display, Tech Tree/Choose Research/tech completion, city production/purchase, and Civilopedia show the concept's climber and climbing-wall icons instead of the previous generated portraits.
+- [ ] Route Reading/Hill Familiarity show the mountain badge, Try Something New shows the climber, and Determination shows the fist, with intact gold borders and no surrounding concept-sheet text.
+- [ ] Small 45px tech/production icons and 16px/32px promotion/alpha/flag assets remain recognizable without opaque outside squares.
 - [ ] Static diplomacy scene loads and does not request missing audio.
 - [ ] Dawn of Man, trait, strategy, Civilopedia sections, city names, spy names, and diplomacy lines resolve without raw `TXT_KEY` strings.
 - [ ] Starting Settler, starting technologies, Palace, and hills region priority behave as expected.

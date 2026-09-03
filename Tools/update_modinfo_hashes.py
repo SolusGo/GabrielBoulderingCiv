@@ -21,6 +21,8 @@ def should_list(path: Path) -> bool:
         return False
     if any(part.startswith(".") for part in path.relative_to(ROOT).parts):
         return False
+    if "__pycache__" in path.parts or path.suffix == ".pyc":
+        return False
     return path.is_file()
 
 

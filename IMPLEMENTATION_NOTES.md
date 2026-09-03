@@ -88,4 +88,8 @@ The runtime is deterministic in its arithmetic and uses no random values. Nevert
 
 ## Art pipeline
 
-The user-supplied concept board remains unmodified in `Art/Source`. Custom raster masters were created from that visual reference, then a deterministic Pillow pipeline generated 1600×900 DXT5 screens and every independently rendered atlas size registered by SQL. The static leader XML uses the diplomacy image as its fallback and no nonexistent audio is referenced.
+The user-supplied concept board remains unmodified in `Art/Source`. Every colour icon is now extracted directly from that board, including the original gold border. Explicit source coordinates and stable atlas-slot mappings live in `Tools/build_art.py`; the seven colour crops and two monochrome derivatives are retained under `Art/Source/Concept_Icons`. Each required DDS size is rendered independently from its crop with aspect ratio preserved.
+
+Try Something New reuses Gym Hopper, Hill Familiarity reuses Route Reading, and all Determination stages reuse the One More Go fist because the concept supplies no separate badges for those promotions. Fresh Sets remains available in object slot 3; no new UI is added. Both alpha/flag masks are extracted from the clean Gym Hopper climber motif. The offline validator verifies original colour pixels, crop transparency, portrait slots, and every encoded atlas against a fresh concept-derived rendering.
+
+The existing generated masters still supply the 1600×900 diplomacy, Dawn of Man, and map screens, which this icon correction does not change. The static leader XML uses the diplomacy image as its fallback and no nonexistent audio is referenced. Use `--icons-only` when rebuilding just the icon assets; full art provenance is in `Docs/ART_GENERATION.md`.
