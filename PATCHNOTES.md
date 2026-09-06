@@ -1,5 +1,9 @@
 # Patch Notes
 
+## Version 1 — Player-only civilization selection — 2026-09-06
+
+- Set Gabriel Bouldering to remain human-playable while preventing the AI from selecting it.
+
 ## Version 1 — Concept icon correction — 2026-09-04
 
 - Replaced the civilization, leader, unit, building, ability, and promotion icons with direct crops of the supplied concept artwork, retaining its original gold borders.
