@@ -8,6 +8,7 @@ modinfo hashes without altering the user's game cache.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import hashlib
 import io
 import re
@@ -19,6 +20,7 @@ from pathlib import Path
 from PIL import Image
 
 import build_art
+from test_gameplay_lifecycle import run_regressions
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,14 +91,21 @@ def apply_sql(db: sqlite3.Connection) -> None:
 
 
 def validate_database_rows(db: sqlite3.Connection) -> None:
-    disabled_hooks = db.execute(
-        "SELECT Name FROM CustomModOptions "
-        "WHERE Name IN "
-        "('EVENTS_BATTLES','EVENTS_UNIT_CAPTURE','EVENTS_UNIT_CONVERTS',"
-        " 'EVENTS_UNIT_CREATED','EVENTS_UNIT_PREKILL','EVENTS_UNIT_UPGRADES') "
-        "AND Value <> 1"
-    ).fetchall()
-    require(not disabled_hooks, f"Required Community Patch hooks remain disabled: {disabled_hooks}")
+    required_hook_groups = {
+        "EVENTS_BATTLES", "EVENTS_UNIT_CAPTURE", "EVENTS_UNIT_CONVERTS",
+        "EVENTS_UNIT_CREATED", "EVENTS_UNIT_PREKILL", "EVENTS_UNIT_UPGRADES",
+    }
+    hook_values = dict(db.execute(
+        "SELECT Name, Value FROM CustomModOptions WHERE Name IN ("
+        "'EVENTS_BATTLES','EVENTS_UNIT_CAPTURE','EVENTS_UNIT_CONVERTS',"
+        "'EVENTS_UNIT_CREATED','EVENTS_UNIT_PREKILL','EVENTS_UNIT_UPGRADES')"
+    ))
+    require(required_hook_groups <= hook_values.keys(),
+            f"Community Patch hook groups are missing: "
+            f"{sorted(required_hook_groups - hook_values.keys())}")
+    disabled_hooks = sorted(name for name, value in hook_values.items() if value != 1)
+    require(not disabled_hooks,
+            f"Required Community Patch hooks remain disabled: {disabled_hooks}")
 
     expected_types = {
         "Civilizations": "CIVILIZATION_GABRIEL_BOULDER",
@@ -110,6 +119,13 @@ def validate_database_rows(db: sqlite3.Connection) -> None:
             scalar(db, f"SELECT COUNT(*) FROM {table} WHERE Type = ?", (row_type,)) == 1,
             f"Expected exactly one {row_type} row in {table}",
         )
+
+    selection = db.execute(
+        "SELECT Playable, AIPlayable FROM Civilizations "
+        "WHERE Type='CIVILIZATION_GABRIEL_BOULDER'"
+    ).fetchone()
+    require(selection == (1, 0),
+            f"Gabriel must remain human-playable and AI-unselectable: {selection}")
 
     require(
         scalar(
@@ -300,6 +316,61 @@ def validate_database_rows(db: sqlite3.Connection) -> None:
             f"Diplomacy responses without localized lines: {missing_responses}")
 
 
+def validate_auxiliary_inheritance(db: sqlite3.Connection) -> None:
+    """Fail closed when CP gives Scout/Barracks a new auxiliary-table mechanic."""
+    copied_tables = {
+        ("UnitType", "UnitGameplay2DScripts"),
+        ("UnitType", "Unit_AITypes"),
+        ("UnitType", "Unit_ClassUpgrades"),
+        ("UnitType", "Unit_Flavors"),
+        ("BuildingType", "Building_DomainFreeExperiences"),
+        ("BuildingType", "Building_Flavors"),
+    }
+    filtered_tables = {("UnitType", "Unit_FreePromotions")}
+    sources = {
+        "UnitType": ("UNIT_SCOUT", "UNIT_GABRIEL_GYM_HOPPER"),
+        "BuildingType": ("BUILDING_BARRACKS", "BUILDING_GABRIEL_BOULDERING_GYM"),
+    }
+    tables = [row[0] for row in db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    )]
+
+    for key_column, (source_type, target_type) in sources.items():
+        for table in tables:
+            columns = [row[1] for row in db.execute(f"PRAGMA table_info([{table}])")]
+            if key_column not in columns:
+                continue
+            key_index = columns.index(key_column)
+            source_rows = list(db.execute(
+                f"SELECT * FROM [{table}] WHERE [{key_column}] = ?", (source_type,)
+            ))
+            if not source_rows:
+                continue
+
+            classification = (key_column, table)
+            require(classification in copied_tables or classification in filtered_tables,
+                    f"Unclassified {source_type} auxiliary mechanics in {table}; "
+                    "review whether the Gabriel replacement must copy or exclude them")
+            target_rows = Counter(db.execute(
+                f"SELECT * FROM [{table}] WHERE [{key_column}] = ?", (target_type,)
+            ))
+            expected_rows = Counter()
+            for row in source_rows:
+                values = list(row)
+                values[key_index] = target_type
+                candidate = tuple(values)
+                if classification in filtered_tables:
+                    promotion_index = columns.index("PromotionType")
+                    if row[promotion_index] == "PROMOTION_IGNORE_TERRAIN_COST":
+                        require(candidate not in target_rows,
+                                "Gym Hopper incorrectly inherited Scout terrain immunity")
+                        continue
+                expected_rows[candidate] += 1
+            missing = expected_rows - target_rows
+            require(not missing,
+                    f"{table} did not copy all classified {source_type} rows: {list(missing)}")
+
+
 def atlas_path(filename: str) -> Path:
     for folder in (ROOT / "Art" / "Atlases", ROOT / "Art" / "Screens"):
         candidate = folder / filename
@@ -427,7 +498,8 @@ def validate_lua() -> None:
     required_hooks = {
         "GameEvents.BattleStarted", "GameEvents.BattleJoined",
         "GameEvents.BattleFinished", "GameEvents.UnitPrekill",
-        "GameEvents.UnitSetXY", "GameEvents.UnitUpgraded",
+        "GameEvents.UnitCreated", "GameEvents.UnitSetXY",
+        "GameEvents.UnitUpgraded", "GameEvents.UnitConverted",
         "GameEvents.PlayerDoTurn", "Modding.OpenSaveData",
     }
     missing = sorted(item for item in required_hooks if item not in text)
@@ -436,6 +508,19 @@ def validate_lua() -> None:
             "Lua does not reference the maximum project promotion")
     require("15 + (5 * era)" in text,
             "Fresh Sets reward formula is missing or changed")
+    for invariant in (
+        "g_VisitIdentityReady", "g_PrecreatedTransfer", "g_CreationPosition",
+        "BeginCreatedVisitIdentity", "PrepareTransferredVisitIdentity",
+        "TransferGymVisits", "if IsEligibleProjector(playerID, unit) then",
+    ):
+        require(invariant in text, f"Gym Hopper lifecycle guard is missing: {invariant}")
+
+
+def validate_gameplay_regressions() -> None:
+    try:
+        run_regressions()
+    except AssertionError as exc:
+        raise ValidationError(f"Gameplay lifecycle regression failed: {exc}") from exc
 
 
 def md5(path: Path) -> str:
@@ -451,12 +536,22 @@ def validate_modinfo() -> None:
     root = ET.parse(MODINFO).getroot()
     require(root.tag == "Mod" and root.attrib.get("version") == "1",
             "modinfo root or version is invalid")
-    dependency = root.find("./Dependencies/Mod")
+    dependencies = root.findall("./Dependencies/Mod")
+    dependency = next((item for item in dependencies
+                       if item.attrib.get("id") == "d1b6328c-ff44-4b0d-aad7-c657f83610cd"), None)
     require(
-        dependency is not None
-        and dependency.attrib.get("id") == "d1b6328c-ff44-4b0d-aad7-c657f83610cd",
+        dependency is not None,
         "Community Patch dependency is missing or incorrect",
     )
+    try:
+        minimum_version = int(dependency.attrib.get("minversion", "0"))
+        maximum_version = int(dependency.attrib.get("maxversion", "0"))
+    except ValueError as exc:
+        raise ValidationError("Community Patch dependency versions must be integers") from exc
+    require(minimum_version >= 151,
+            f"Community Patch minimum version must be at least 151, found {minimum_version}")
+    require(maximum_version == 999,
+            f"Community Patch maximum version must remain 999, found {maximum_version}")
     entries = root.findall("./Files/File")
     require(entries, "modinfo Files list is empty")
     listed = set()
@@ -485,9 +580,11 @@ def main() -> int:
         database = load_database(args.database)
         apply_sql(database)
         validate_database_rows(database)
+        validate_auxiliary_inheritance(database)
         validate_art(database)
         validate_concept_icons()
         validate_lua()
+        validate_gameplay_regressions()
         validate_modinfo()
     except (ValidationError, ET.ParseError) as exc:
         print(f"VALIDATION FAILED: {exc}", file=sys.stderr)
@@ -495,7 +592,7 @@ def main() -> int:
     finally:
         if "database" in locals():
             database.close()
-    print("Validation passed: database, localization, concept icons, art, Lua hooks, and modinfo are consistent.")
+    print("Validation passed: database, inheritance, lifecycle regressions, art, Lua, and modinfo are consistent.")
     return 0
 
 

@@ -13,7 +13,8 @@ The offline validator covers database and asset integrity. The cases below shoul
 ## Setup and presentation
 
 - [ ] Mod appears in the browser and refuses activation without the Community Patch dependency.
-- [ ] The Boulder Circuit is selectable by a human and available to the AI.
+- [ ] Community Patch versions below 151 fail the declared dependency; v151 or later can enable the mod.
+- [ ] The Boulder Circuit is selectable by a human and intentionally unavailable for normal AI civilization selection.
 - [ ] Civilization colour icon, alpha icon, leader portrait, map image, Dawn of Man image, unit/building icons, promotion icons, and Gym Hopper flag render without pink squares or atlas bleed.
 - [ ] Setup, Dawn of Man unique display, Tech Tree/Choose Research/tech completion, city production/purchase, and Civilopedia show the concept's climber and climbing-wall icons instead of the previous generated portraits.
 - [ ] Route Reading/Hill Familiarity show the mountain badge, Try Something New shows the climber, and Determination shows the fist, with intact gold borders and no surrounding concept-sheet text.
@@ -70,16 +71,20 @@ The offline validator covers database and asset integrity. The cases below shoul
 - [ ] Barbarian, unowned, and the unit owner's territory grant no visit XP.
 - [ ] Two Gym Hoppers can each earn their own first-visit reward.
 - [ ] A captured or gifted Gym Hopper continues to earn genuinely new first visits but cannot re-earn civilizations the physical unit already visited.
+- [ ] Initial `UnitSetXY` before or after `UnitCreated` grants no visit XP merely for placement.
+- [ ] Capture/gift placement in already visited territory grants no XP before `UnitConverted` migrates history.
+- [ ] Capture/gift followed by entry into a genuinely unvisited owner grants exactly 2 XP.
+- [ ] A later Gym Hopper that reuses a dead unit's UnitID does not inherit its visits.
 - [ ] Upgrade removes Try Something New and grants permanent +10% Hill Defense.
-- [ ] A second later upgrade retains Hill Familiarity.
+- [ ] Upgrade retains the Gym Hopper visit record, and a second later upgrade retains Hill Familiarity.
 
-## Bouldering Gym and AI
+## Bouldering Gym and forced-AI compatibility
 
 - [ ] Building replaces Barracks, has the current CP Barracks cost/maintenance/technology, and supplies its normal training XP.
 - [ ] Building provides +1 Culture and +1 Local Happiness.
 - [ ] Newly trained land combat classes receive Route Reading; civilian, sea, and air units do not.
 - [ ] Route Reading supplies +10% attack and defense on Hills only and survives upgrades.
-- [ ] AI Gabriel explores, builds training infrastructure, and uses land routes without Lua errors.
+- [ ] In an explicitly forced/debug AI setup, Gabriel explores, builds training infrastructure, and uses land routes without Lua errors; this is not a normal selection-path requirement.
 - [ ] A late-game large-army turn shows no noticeable processing spike.
 
 ## Logs and regression checks

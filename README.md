@@ -9,8 +9,9 @@ Gabriel leads **The Boulder Circuit**, a hills-focused civilization that learns 
 ## Requirements
 
 - Civilization V: Brave New World
-- `(1) Community Patch` (mod ID `d1b6328c-ff44-4b0d-aad7-c657f83610cd`)
+- `(1) Community Patch` v151 or later (mod ID `d1b6328c-ff44-4b0d-aad7-c657f83610cd`)
 - Single-player; multiplayer and hotseat are deliberately disabled in the manifest because the target-state mechanic uses local persistent Lua storage
+- Human selection only; `AIPlayable=0` intentionally keeps Gabriel out of normal AI civilization selection
 
 This mod depends only on the Community Patch component. It does not require the rest of Vox Populi.
 
@@ -72,8 +73,8 @@ Replaces the Barracks and inherits the live Community Patch Barracks fields and 
 - **Fresh Sets timing:** route state is checked at the start of Gabriel's turn. A route created during a turn normally pays its reward at the start of the next turn. This is the stable CP-only equivalent of an establishment event.
 - **Destination identity:** Fresh Sets keys destinations by map coordinates and Era. Capturing, razing, or refounding a city on the same plot cannot produce duplicate rewards in one Era.
 - **Game speed:** the explicit 15/20/25/etc. table is intentionally not game-speed scaled.
-- **Acquired units:** captured or gifted Gym Hoppers retain their unique exploration behavior. One More Go itself belongs to Gabriel, so a projector's state is cleared when the unit changes owners.
-- **Save/load:** project targets, stacks, last-attempt turns, destination visits, and Gym Hopper lineage use `Modding.OpenSaveData`. Temporary combat bonuses are scrubbed on initialization and every Gabriel turn.
+- **Acquired units:** captured or gifted Gym Hoppers retain their physical unit's completed destination visits. Ownership migration never awards visit XP merely because the replacement unit was placed in foreign territory. One More Go itself belongs to Gabriel, so a projector's state is cleared when the unit changes owners.
+- **Save/load:** project targets, stacks, last-attempt turns, and generation-scoped Gym Hopper visits use `Modding.OpenSaveData`. Initial placement is gated in memory until visit identity is ready; temporary combat bonuses are scrubbed on initialization and every Gabriel turn.
 
 More technical detail and the full edge-case policy are in [IMPLEMENTATION_NOTES.md](IMPLEMENTATION_NOTES.md). A manual test matrix is in [TESTING.md](TESTING.md).
 
@@ -102,7 +103,7 @@ python Tools/update_modinfo_hashes.py
 python Tools/validate_database.py
 ```
 
-The validator applies both SQL files to an in-memory copy of the database, then verifies unique rows, stats, promotions, copied Barracks experience, localization, diplomacy coverage, exact concept crops, reproducible DDS atlases, portrait slots, atlas sizes, screen sizes, leader scene XML, Lua hook presence, dependency metadata, VFS imports, file existence, and every modinfo MD5. These are offline checks, not a claim of in-game testing.
+The validator applies both SQL files to an in-memory copy of the database, then verifies unique rows, stats, promotions, discovered Scout/Barracks auxiliary-table inheritance, localization, diplomacy coverage, lifecycle regression models, exact concept crops, reproducible DDS atlases, portrait slots, atlas sizes, screen sizes, leader scene XML, Lua hook presence, the CP v151 dependency, VFS imports, file existence, and every modinfo MD5. These are offline checks, not a claim of in-game testing.
 
 ## Repository map
 

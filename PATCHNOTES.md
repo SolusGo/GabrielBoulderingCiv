@@ -1,5 +1,16 @@
 # Patch Notes
 
+## Version 1 — Lifecycle and compatibility hardening — 2026-09-22
+
+- Made Gym Hopper visit identity independent of initial `UnitSetXY`/`UnitCreated` ordering and migrated visit history before post-conversion movement.
+- Preserved physical-unit visit history through capture, gifting, conversion, upgrade, save/load, and UnitID reuse without changing the +2 XP reward.
+- Scoped `UnitCreated`, upgrade, and conversion persistence writes to Gabriel projectors and Gym Hopper state instead of every unit globally.
+- Raised the Community Patch dependency floor to v151 while preserving the CP UUID and `maxversion=999`.
+- Added fail-closed discovery of future Scout/Barracks auxiliary-table mechanics with explicit copied and filtered classifications.
+- Added deterministic lifecycle regression models for callback permutations, save/load, UnitID reuse, project bonuses, and Fresh Sets Era keys.
+- Corrected documentation for the intentionally human-only civilization selection; retained AI flavors for forced/debug compatibility.
+- Kept the target-death army scan as the correctness-first fallback; One More Go, Fresh Sets, unit/building values, rewards, and all other balance are unchanged.
+
 ## Version 1 — Player-only civilization selection — 2026-09-06
 
 - Set Gabriel Bouldering to remain human-playable while preventing the AI from selecting it.

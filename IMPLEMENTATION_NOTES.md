@@ -2,7 +2,7 @@
 
 ## Compatibility target
 
-The mod targets Brave New World plus `(1) Community Patch` and declares that dependency in the modinfo. CP-only interfaces used by the runtime are:
+The mod targets Brave New World plus `(1) Community Patch` v151 or later and declares `minversion=151`, `maxversion=999` in the modinfo. CP-only interfaces used by the runtime are:
 
 - `GameEvents.BattleStarted`
 - `GameEvents.BattleJoined`
@@ -13,9 +13,7 @@ The mod targets Brave New World plus `(1) Community Patch` and declares that dep
 - `Player:GetTradeRoutes()` with structured route fields
 - the `Buildings.TrainedFreePromotion` and `UnitPromotions.AttackMod` database columns
 
-The implementation does not use full-Vox-Populi balance tables or UI components.
-The core SQL explicitly enables the six listed CP event families because their
-public options default to disabled in a CP-only install.
+The implementation does not use full-Vox-Populi balance tables or UI components. CP v151 source confirms the event signatures used here and that normal conversion initializes the replacement (including `UnitCreated`) before `UnitConverted` transfers from the still-live old unit. The core SQL explicitly enables the six listed CP event families because their public options default to disabled in a CP-only install.
 
 ## One More Go state machine
 
@@ -60,15 +58,15 @@ Rewards use `ChangeOverflowResearch` and `ChangeJONSCulture`. The literal design
 
 `UnitSetXY` evaluates only units whose current type is Gym Hopper. On first entry into land owned by each alive non-barbarian foreign player, a generation-scoped persistence key awards 2 XP. A per-unit generation counter prevents a newly created unit that reuses an old unit ID from inheriting visit records.
 
-Gym Hopper lineage is stored separately. `UnitUpgraded` transfers any active Gabriel project, records lineage, and grants Hill Familiarity to the successor. Hill Familiarity is not lost on later upgrades. `UnitConverted` preserves lineage for gifting/capture while clearing One More Go state, because the UA belongs to Gabriel rather than to the acquired unit.
+Runtime identity is initialized idempotently. A `UnitSetXY` received before `UnitCreated` is ignored; the creation coordinate remains suppressed; the first different coordinate is treated as genuine movement. `UnitConverted` initializes the destination generation if necessary and copies visit history before later movement. A small pre-created-transfer marker also makes the protocol safe if another compatible DLL reverses those two callbacks.
 
-When an unupgraded Gym Hopper changes owners, its per-civilization visit flags
-are copied to the new unit generation. The physical explorer therefore cannot
-re-earn a civilization it already visited merely by being gifted or captured.
+When an unupgraded Gym Hopper changes owners, its per-civilization visit flags are copied to the new owner/ID/generation. The physical explorer therefore cannot re-earn a civilization it already visited merely by being gifted or captured, and its replacement placement cannot itself award XP. Upgrade also copies the visit record before the Gym Hopper ceases to use it, removes Try Something New through its existing `LostWithUpgrade` field, and grants permanent Hill Familiarity. Hill Familiarity then acts as the authoritative lineage marker and survives later upgrades; old `GYM_LINEAGE` keys are read only for save compatibility.
 
 ## Static database design
 
-The Gym Hopper and Bouldering Gym are cloned at SQL activation time from the live Scout and Barracks rows. Temporary-table `SELECT *` cloning preserves CP-added columns and later base balance adjustments. Related AI, flavor, upgrade, and domain-experience rows are copied separately.
+The Gym Hopper and Bouldering Gym are cloned at SQL activation time from the live Scout and Barracks rows. Temporary-table `SELECT *` cloning preserves CP-added columns and later base balance adjustments. Related AI, flavor, upgrade, audio, promotion, and domain-experience rows are copied separately.
+
+The validator discovers every database table containing `UnitType` or `BuildingType`, examines rows attached to `UNIT_SCOUT` and `BUILDING_BARRACKS`, and compares classified copied rows with their Gabriel equivalents. Scout terrain immunity is the one explicit filtered exclusion. A future CP source mechanic in any unclassified auxiliary table fails validation for review instead of being silently omitted or blindly inherited.
 
 The Scout's global `PROMOTION_IGNORE_TERRAIN_COST` is excluded on purpose. Try Something New implements the specified Hill-only movement benefit with `HillsDoubleMove`.
 
@@ -77,10 +75,11 @@ Route Reading is restricted through `UnitPromotions_UnitCombats` to the eight la
 ## Performance and AI
 
 - No full-map loop is used.
-- Battle work is constant-time except target death, which scans only Gabriel's current military roster to clear references.
+- `UnitCreated` writes persistent state only for Gabriel projectors and Gym Hoppers; ordinary foreign and civilian creation is read-only.
+- Upgrade/conversion handlers return without save-data writes when neither Gabriel project state nor Gym Hopper history is relevant.
+- Target death still scans Gabriel's current military roster. This is an intentional correctness-first fallback: only one human-selectable Gabriel can normally exist, and a reverse index would duplicate authoritative persistent state for a low-frequency event.
 - Per-turn work scans only Gabriel's units and active trade routes.
-- The AI uses the unit and building normally. It cannot plan around a particular stored project as precisely as a human, but repeated attacks naturally receive the bonus and target switching safely resets it.
-- The AI's high Recon, Training, Defense, Science, and Land Trade Route flavors align normal build and movement priorities with the kit.
+- Gabriel is intentionally `AIPlayable=0`. Existing AI flavors remain for compatibility and forced/debug setups, but normal AI civilization selection is not supported or tested.
 
 ## Multiplayer
 

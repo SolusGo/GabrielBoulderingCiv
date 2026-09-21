@@ -25,6 +25,7 @@ local PROJECT_TIMEOUT_TURNS = 3
 
 local g_SaveData = Modding.OpenSaveData()
 local g_CurrentBattle = nil
+local ForgetRuntimeUnit
 
 local function SaveKey(category, playerID, unitID, suffix)
     if suffix ~= nil then
@@ -267,6 +268,7 @@ local function OnUnitPrekill(ownerID, unitID, unitType, x, y, delay, killerPlaye
         g_CurrentBattle.targetKilled = true
     end
     ClearProjectsAimedAt(ownerID, unitID)
+    ForgetRuntimeUnit(ownerID, unitID)
 end
 
 local function OnBattleFinished()
@@ -352,20 +354,74 @@ end
 -- Gym Hopper exploration and upgrade inheritance
 -- ---------------------------------------------------------------------------
 
+-- Runtime identity gates prevent initial placement from counting as a visit.
+-- Persistent generations remain authoritative for save/load and UnitID reuse.
+local g_VisitIdentityReady = {}
+local g_PrecreatedTransfer = {}
+local g_CreationPosition = {}
+local g_UpgradedFromGymHopper = {}
+
+local function RuntimeUnitKey(playerID, unitID)
+    return string.format("%d:%d", playerID, unitID)
+end
+
 local function GenerationKey(playerID, unitID)
     return SaveKey("GENERATION", playerID, unitID)
 end
 
-local function LineageKey(playerID, unitID)
+local function LegacyLineageKey(playerID, unitID)
     return SaveKey("GYM_LINEAGE", playerID, unitID)
 end
 
-local function SetGymLineage(playerID, unitID, enabled)
-    SetNumber(LineageKey(playerID, unitID), enabled and 1 or 0)
+local function BumpVisitGeneration(playerID, unitID)
+    SetNumber(GenerationKey(playerID, unitID),
+        GetNumber(GenerationKey(playerID, unitID), 0) + 1)
 end
 
-local function HasGymLineage(playerID, unitID)
-    return GetNumber(LineageKey(playerID, unitID), 0) == 1
+local function RecordCreationPosition(playerID, unitID, x, y)
+    if x ~= nil and y ~= nil and x >= 0 and y >= 0 then
+        g_CreationPosition[RuntimeUnitKey(playerID, unitID)] = { x = x, y = y }
+    end
+end
+
+local function BeginCreatedVisitIdentity(playerID, unitID, x, y)
+    local key = RuntimeUnitKey(playerID, unitID)
+    -- UnitConverted normally follows UnitCreated. If a DLL variant reverses
+    -- them, the transfer handler has already allocated this generation.
+    if not g_PrecreatedTransfer[key] then
+        BumpVisitGeneration(playerID, unitID)
+    end
+    g_PrecreatedTransfer[key] = nil
+    g_VisitIdentityReady[key] = true
+    RecordCreationPosition(playerID, unitID, x, y)
+end
+
+local function PrepareTransferredVisitIdentity(playerID, unitID, x, y)
+    local key = RuntimeUnitKey(playerID, unitID)
+    if not g_VisitIdentityReady[key] then
+        BumpVisitGeneration(playerID, unitID)
+        g_VisitIdentityReady[key] = true
+        g_PrecreatedTransfer[key] = true
+    end
+    RecordCreationPosition(playerID, unitID, x, y)
+end
+
+local function RestoreExistingVisitIdentity(playerID, unitID)
+    local key = RuntimeUnitKey(playerID, unitID)
+    if GetNumber(GenerationKey(playerID, unitID), 0) <= 0 then
+        SetNumber(GenerationKey(playerID, unitID), 1)
+    end
+    g_VisitIdentityReady[key] = true
+    g_PrecreatedTransfer[key] = nil
+    g_CreationPosition[key] = nil
+end
+
+ForgetRuntimeUnit = function(playerID, unitID)
+    local key = RuntimeUnitKey(playerID, unitID)
+    g_VisitIdentityReady[key] = nil
+    g_PrecreatedTransfer[key] = nil
+    g_CreationPosition[key] = nil
+    g_UpgradedFromGymHopper[key] = nil
 end
 
 local function ExplorationKey(playerID, unitID, foreignOwner)
@@ -375,11 +431,17 @@ local function ExplorationKey(playerID, unitID, foreignOwner)
 end
 
 local function OnUnitCreated(playerID, unitID, unitType, x, y)
-    -- Unit IDs can be reused, so every new unit receives a new persistence generation.
-    SetNumber(GenerationKey(playerID, unitID),
-        GetNumber(GenerationKey(playerID, unitID), 0) + 1)
-    ClearProject(playerID, unitID)
-    SetGymLineage(playerID, unitID, unitType == UNIT_GYM_HOPPER)
+    local unit = GetUnit(playerID, unitID)
+    local isGymHopper = unitType == UNIT_GYM_HOPPER
+
+    -- Only units which can own Gabriel state create save-data keys. This avoids
+    -- six writes for every irrelevant civilian and foreign unit in the world.
+    if IsEligibleProjector(playerID, unit) then
+        ClearProject(playerID, unitID)
+    end
+    if isGymHopper then
+        BeginCreatedVisitIdentity(playerID, unitID, x, y)
+    end
 end
 
 local function OnUnitSetXY(playerID, unitID, x, y)
@@ -389,6 +451,20 @@ local function OnUnitSetXY(playerID, unitID, x, y)
     local unit = GetUnit(playerID, unitID)
     if unit == nil or unit:GetUnitType() ~= UNIT_GYM_HOPPER then
         return
+    end
+    local runtimeKey = RuntimeUnitKey(playerID, unitID)
+    if not g_VisitIdentityReady[runtimeKey] then
+        -- Initial SetXY can precede UnitCreated. Identity and any transferred
+        -- visit history must be established before genuine movement is judged.
+        return
+    end
+    local creationPosition = g_CreationPosition[runtimeKey]
+    if creationPosition ~= nil then
+        if creationPosition.x == x and creationPosition.y == y then
+            return
+        end
+        -- The first different plot is genuine post-creation movement.
+        g_CreationPosition[runtimeKey] = nil
     end
     local plot = Map.GetPlot(x, y)
     if plot == nil then
@@ -421,18 +497,6 @@ local function CopyProjectToUpgrade(playerID, oldUnitID, newUnitID)
     ClearProject(playerID, oldUnitID)
 end
 
-local function OnUnitUpgraded(playerID, oldUnitID, newUnitID, isGoodyHutUpgrade)
-    local newUnit = GetUnit(playerID, newUnitID)
-    if newUnit == nil then
-        return
-    end
-    local inheritedGymLineage = HasGymLineage(playerID, oldUnitID)
-        or newUnit:GetUnitType() == UNIT_GYM_HOPPER
-
-    CopyProjectToUpgrade(playerID, oldUnitID, newUnitID)
-    SetGymLineage(playerID, newUnitID, inheritedGymLineage)
-end
-
 local function TransferGymVisits(oldPlayerID, oldUnitID, newPlayerID, newUnitID)
     -- Conversions are rare, so a bounded player-slot loop is preferable to
     -- allowing a captured or gifted Gym Hopper to re-earn old destinations.
@@ -444,34 +508,69 @@ local function TransferGymVisits(oldPlayerID, oldUnitID, newPlayerID, newUnitID)
     end
 end
 
+local function OnUnitUpgraded(playerID, oldUnitID, newUnitID, isGoodyHutUpgrade)
+    local oldUnit = GetUnit(playerID, oldUnitID)
+    local newUnit = GetUnit(playerID, newUnitID)
+    if newUnit == nil then
+        return
+    end
+    if IsGabrielPlayer(playerID) then
+        CopyProjectToUpgrade(playerID, oldUnitID, newUnitID)
+    end
+
+    if oldUnit ~= nil and oldUnit:GetUnitType() == UNIT_GYM_HOPPER then
+        local key = RuntimeUnitKey(playerID, newUnitID)
+        g_UpgradedFromGymHopper[key] = true
+        PrepareTransferredVisitIdentity(
+            playerID, newUnitID, newUnit:GetX(), newUnit:GetY())
+        TransferGymVisits(playerID, oldUnitID, playerID, newUnitID)
+    end
+end
+
 local function OnUnitConverted(oldPlayerID, newPlayerID, oldUnitID, newUnitID, isUpgrade)
+    local oldUnit = GetUnit(oldPlayerID, oldUnitID)
     local newUnit = GetUnit(newPlayerID, newUnitID)
     if newUnit == nil then
         return
     end
-    local inheritedGymLineage = HasGymLineage(oldPlayerID, oldUnitID)
-        or HasGymLineage(newPlayerID, newUnitID)
+    local runtimeKey = RuntimeUnitKey(newPlayerID, newUnitID)
+    local oldWasGymHopper = oldUnit ~= nil
+        and oldUnit:GetUnitType() == UNIT_GYM_HOPPER
+    local inheritedGymLineage = oldWasGymHopper
+        or g_UpgradedFromGymHopper[runtimeKey] == true
         or newUnit:GetUnitType() == UNIT_GYM_HOPPER
-    SetGymLineage(newPlayerID, newUnitID, inheritedGymLineage)
+    local projectRelevant = IsGabrielPlayer(oldPlayerID)
+        or IsGabrielPlayer(newPlayerID)
+
+    if not inheritedGymLineage and not projectRelevant then
+        return
+    end
+
+    if inheritedGymLineage then
+        PrepareTransferredVisitIdentity(
+            newPlayerID, newUnitID, newUnit:GetX(), newUnit:GetY())
+        TransferGymVisits(oldPlayerID, oldUnitID, newPlayerID, newUnitID)
+    end
 
     if isUpgrade then
         -- UnitUpgraded fires before CvUnit::convert copies promotions. UnitConverted
         -- fires after that copy, so persistent promotion state must be finalized here.
-        local project = ReadProject(newPlayerID, newUnitID)
-        UpdateDeterminationPromotion(newUnit, project.stacks)
-        if inheritedGymLineage then
+        if IsGabrielPlayer(newPlayerID) then
+            local project = ReadProject(newPlayerID, newUnitID)
+            UpdateDeterminationPromotion(newUnit, project.stacks)
+        end
+        if oldWasGymHopper or g_UpgradedFromGymHopper[runtimeKey] then
             SetPromotion(newUnit, PROMOTION_HILL_FAMILIARITY, true)
         end
+        g_UpgradedFromGymHopper[runtimeKey] = nil
         return
     end
 
-    ClearProject(newPlayerID, newUnitID)
-    ClearProject(oldPlayerID, oldUnitID)
-    if newUnit:GetUnitType() == UNIT_GYM_HOPPER then
-        TransferGymVisits(oldPlayerID, oldUnitID, newPlayerID, newUnitID)
+    if IsGabrielPlayer(newPlayerID) then
+        ClearProject(newPlayerID, newUnitID)
     end
-    if inheritedGymLineage and newUnit:GetUnitType() ~= UNIT_GYM_HOPPER then
-        SetPromotion(newUnit, PROMOTION_HILL_FAMILIARITY, true)
+    if IsGabrielPlayer(oldPlayerID) then
+        ClearProject(oldPlayerID, oldUnitID)
     end
 end
 
@@ -497,8 +596,10 @@ local function ReconcileGabrielUnits(playerID)
             UpdateDeterminationPromotion(unit, 0)
         end
         if unit:GetUnitType() == UNIT_GYM_HOPPER then
-            SetGymLineage(playerID, unitID, true)
-        elseif HasGymLineage(playerID, unitID) then
+            RestoreExistingVisitIdentity(playerID, unitID)
+        elseif GetNumber(LegacyLineageKey(playerID, unitID), 0) == 1 then
+            -- One-time compatibility with saves made before Hill Familiarity
+            -- itself became the authoritative post-upgrade lineage marker.
             SetPromotion(unit, PROMOTION_HILL_FAMILIARITY, true)
         end
     end
@@ -520,6 +621,9 @@ local function Initialize()
         if player ~= nil and player:IsAlive() then
             for unit in player:Units() do
                 ClearTemporaryAttackPromotions(unit)
+                if unit:GetUnitType() == UNIT_GYM_HOPPER then
+                    RestoreExistingVisitIdentity(playerID, unit:GetID())
+                end
             end
         end
         if IsGabrielPlayer(playerID) then

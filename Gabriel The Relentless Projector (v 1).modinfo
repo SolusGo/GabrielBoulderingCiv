@@ -21,7 +21,7 @@
     <ReloadUnitSystem>0</ReloadUnitSystem>
   </Properties>
   <Dependencies>
-    <Mod id="d1b6328c-ff44-4b0d-aad7-c657f83610cd" minversion="1" maxversion="999" title="(1) Community Patch" />
+    <Mod id="d1b6328c-ff44-4b0d-aad7-c657f83610cd" minversion="151" maxversion="999" title="(1) Community Patch" />
   </Dependencies>
   <References />
   <Blocks />
@@ -70,16 +70,17 @@
     <File md5="6A2E2DC1B1756B237C1B502E72B2737F" import="0">Art/Source/Gabriel_Gym_Hopper_Master.png</File>
     <File md5="C31CA76B14656C019E33F1AEA6C3F39E" import="0">Art/Source/Gabriel_Leader_Master.png</File>
     <File md5="79F9F19745D0CB37B296EBBA1C6640C9" import="0">Docs/ART_GENERATION.md</File>
-    <File md5="7AEF23E30BAC9ACD0156C4F7954F2028" import="0">IMPLEMENTATION_NOTES.md</File>
-    <File md5="22EE40ECA1CE45CC3B8332D5F083DAAB" import="0">Lua/Gabriel_Gameplay.lua</File>
-    <File md5="953B3E5C19E74F0A2BF6D09AD3476AF4" import="0">PATCHNOTES.md</File>
-    <File md5="2DA52FF5044A36F36AB4A5E3706D57C4" import="0">README.md</File>
-    <File md5="A4E37AC130AA3B8B51529CD7760DE6BD" import="0">SQL/01_Gabriel_Core.sql</File>
+    <File md5="BED0853EA0AF73BAB3C4868EDCA32118" import="0">IMPLEMENTATION_NOTES.md</File>
+    <File md5="8288C269550047D01C6B415387176865" import="0">Lua/Gabriel_Gameplay.lua</File>
+    <File md5="ADFD3F7D5D404D2B794BB26FE146C854" import="0">PATCHNOTES.md</File>
+    <File md5="6BD97870D46FE8817B08286C5035E75E" import="0">README.md</File>
+    <File md5="A9483C2F5D49E18E4D1A6160EF5D8C9C" import="0">SQL/01_Gabriel_Core.sql</File>
     <File md5="2DA34294561BAC9E364EDB94A7655CBB" import="0">SQL/02_Gabriel_Text.sql</File>
-    <File md5="CA09398B06F9DB5C0C667D79B5CA9121" import="0">TESTING.md</File>
+    <File md5="B1A85D92EE787CE87A8583362D97C948" import="0">TESTING.md</File>
     <File md5="F7436564F37C66EDED3C55A2D7583A77" import="0">Tools/build_art.py</File>
+    <File md5="919BC9925DCD781625D94172EBE2AF68" import="0">Tools/test_gameplay_lifecycle.py</File>
     <File md5="F4D4923839EAFE9FDFFCD8912B214C4E" import="0">Tools/update_modinfo_hashes.py</File>
-    <File md5="D5F9B9CFF51E6BF5BF78A19E4258F16B" import="0">Tools/validate_database.py</File>
+    <File md5="AA08B4B9EE5527107D626E97BD7EAE80" import="0">Tools/validate_database.py</File>
   </Files>
   <Actions>
     <OnModActivated>
